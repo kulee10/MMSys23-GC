@@ -154,8 +154,8 @@ public:
 struct RenoCongestionCtlConfig
 {
     uint32_t minCwnd{1};
-    uint32_t maxCwnd{64};
-    uint32_t ssThresh{32}; /** slow start threshold*/
+    uint32_t maxCwnd{80};
+    uint32_t ssThresh{40}; /** slow start threshold*/
 };
 
 class RenoCongestionContrl : public CongestionCtlAlgo
@@ -256,10 +256,10 @@ private:
         if (InSlowStart())
         {
             /// add 1 for each ack event
-            m_cwnd += 1;
+            // m_cwnd += 1;
 
             // bic
-            // m_cwnd *= 2;
+            m_cwnd *= 2;
 
             if (m_cwnd >= m_ssThresh)
             {
@@ -270,17 +270,17 @@ private:
         else
         {
             /// add cwnd for each RTT
-            m_cwndCnt++;
-            m_cwnd += m_cwndCnt / m_cwnd;
-            if (m_cwndCnt == m_cwnd)
-            {
-                m_cwndCnt = 0;
-            }
+            // m_cwndCnt++;
+            // m_cwnd += m_cwndCnt / m_cwnd;
+            // if (m_cwndCnt == m_cwnd)
+            // {
+            //     m_cwndCnt = 0;
+            // }
 
             // bic
-            // float beta = 0.5;
-            // float k = 1 / (1 - beta);
-            // m_cwnd += k;
+            float beta = 0.5;
+            float k = 1 / (1 - beta);
+            m_cwnd += k;
 
             SPDLOG_DEBUG("not in slow start state,new m_cwndCnt:{} new m_cwnd:{}",
                          m_cwndCnt, ackEvent.DebugInfo(), m_cwnd);
@@ -313,14 +313,14 @@ private:
         {
             // Not In slow start and not inside Recovery state
             // Cut half
-            m_cwnd = m_cwnd / 2;
-            m_cwnd = BoundCwnd(m_cwnd);
-            m_ssThresh = m_cwnd;
+            // m_cwnd = m_cwnd / 2;
+            // m_cwnd = BoundCwnd(m_cwnd);
+            // m_ssThresh = m_cwnd;
 
             // bic
-            // m_cwnd = m_cwnd / 2;
-            // float beta = 0.5;
-            // m_ssThresh = (m_cwnd * (1 - beta)) / 2;
+            m_cwnd = m_cwnd / 2;
+            float beta = 0.5;
+            m_ssThresh = (m_cwnd * (1 - beta)) / 2;
             // enter Recovery state
         }
         SPDLOG_DEBUG("after Loss, m_cwnd={}", m_cwnd);
@@ -336,8 +336,8 @@ private:
     Timepoint lastLagestLossPktSentTic{Timepoint::Zero()};
 
     uint32_t m_minCwnd{1};
-    uint32_t m_maxCwnd{64};
-    uint32_t m_ssThresh{32}; /** slow start threshold*/
+    uint32_t m_maxCwnd{80};
+    uint32_t m_ssThresh{40}; /** slow start threshold*/
 };
 
 /////////////////////////////////////////// vegas ///////////////////////////////////////////
@@ -346,7 +346,7 @@ private:
 struct VegasCongestionCtlConfig
 {
     uint32_t minCwnd{1};
-    uint32_t maxCwnd{64};
+    uint32_t maxCwnd{80};
 };
 
 class VegasCongestionContrl : public CongestionCtlAlgo
@@ -401,13 +401,29 @@ private:
         SPDLOG_DEBUG("ackevent:{},m_cwnd:{}", ackEvent.DebugInfo(), m_cwnd);
         auto new_rtt = rttstats.latest_rtt();
         auto new_smooth_rtt = rttstats.smoothed_rtt();
+        // new vegas
+        // SPDLOG_DEBUG("@@@@@@@@@@@@@@@@@@@@ new_rtt:{} @@@@@@@@@@@@@@@@@@@@", new_rtt.ToMilliseconds());
+        m_cwndCnt++;
+        if (m_cwndCnt > m_cwnd)
+        {
+            m_cwndCnt = 0;
+        }
         if (new_rtt < new_smooth_rtt)
         {
             m_cwnd += 1;
+            // auto expected_throughput = m_cwnd / new_rtt.ToMilliseconds();
+            // if (expected_throughput > m_cwnd)
+            // {
+            //     m_cwnd += 1;
+            // }
+            // else
+            // {
+            //     m_cwnd += 1 / m_cwnd;
+            // }
         }
         else
         {
-            m_cwnd -= 1;
+            m_cwnd -= m_cwndCnt / m_cwnd;
         }
         m_cwnd = BoundCwnd(m_cwnd);
         SPDLOG_DEBUG("after RX, m_cwnd={}", m_cwnd);
@@ -416,6 +432,10 @@ private:
     void OnDataLoss(const LossEvent &lossEvent)
     {
         SPDLOG_DEBUG("lossevent:{}", lossEvent.DebugInfo());
+        // m_cwnd /= 2;
+        m_cwnd -= m_cwndCnt / m_cwnd;
+        m_cwnd = BoundCwnd(m_cwnd);
+        SPDLOG_DEBUG("after Loss, m_cwnd={}", m_cwnd);
     }
 
     uint32_t BoundCwnd(uint32_t trySetCwnd)
@@ -425,6 +445,7 @@ private:
 
     uint32_t m_cwnd{1};
     uint32_t m_minCwnd{1};
-    uint32_t m_maxCwnd{64};
+    uint32_t m_maxCwnd{80};
+    uint32_t m_cwndCnt{0}; /** in congestion avoid phase, used for counting ack packets*/
 };
 // [kyl] end
