@@ -7,6 +7,7 @@
 #include "congestioncontrol.hpp"
 #include "basefw/base/log.h"
 #include "packettype.h"
+
 class SessionStreamCtlHandler
 {
 public:
@@ -32,14 +33,14 @@ public:
         {
             rt = false;
         }
-        SPDLOG_TRACE("cwnd:{},downloadingPktCnt:{},rt: {}",cwnd,downloadingPktCnt,rt);
+        SPDLOG_TRACE("cwnd:{},downloadingPktCnt:{},rt: {}", cwnd, downloadingPktCnt, rt);
         return rt;
     }
 
     uint32_t MaySendPktCnt(uint32_t cwnd, uint32_t downloadingPktCnt)
     {
-        SPDLOG_TRACE("cwnd:{},downloadingPktCnt:{}",cwnd,downloadingPktCnt);
-        if(cwnd>=downloadingPktCnt)
+        SPDLOG_TRACE("cwnd:{},downloadingPktCnt:{}", cwnd, downloadingPktCnt);
+        if (cwnd >= downloadingPktCnt)
         {
             return std::min(cwnd - downloadingPktCnt, 8U);
         }
@@ -50,9 +51,6 @@ public:
     }
 
 };
-
-
-
 
 /// SessionStreamController is the single session delegate inside transport module.
 /// This single session contains three part, congestion control module, loss detection module, traffic control module.
@@ -162,9 +160,9 @@ public:
             return false;
         }
 
-        if (spns.size()>CanRequestPktCnt())
+        if (spns.size() > CanRequestPktCnt())
         {
-            SPDLOG_WARN("The number of request data pieces {} exceeds the freewnd {}", spns.size(),CanRequestPktCnt());
+            SPDLOG_WARN("The number of request data pieces {} exceeds the freewnd {}", spns.size(), CanRequestPktCnt());
             return false;
         }
         auto handler = m_ssStreamHandler.lock();
@@ -181,23 +179,23 @@ public:
     }
 
     void OnDataRequestPktSent(const std::vector<SeqNumber>& seqs,
-                              const std::vector<DataNumber>& dataids, Timepoint sendtic)
+            const std::vector<DataNumber>& dataids, Timepoint sendtic)
     {
         SPDLOG_TRACE("seq = {}, dataid = {}, sendtic = {}",
-                     seqs,
-                     dataids,sendtic.ToDebuggingValue());
+                seqs,
+                dataids, sendtic.ToDebuggingValue());
         if (!isRunning)
         {
             return;
         }
         auto seqidx = 0;
-        for (auto datano:dataids)
+        for (auto datano: dataids)
         {
             DataPacket p;
             p.seq = seqs[seqidx];
             p.pieceId = datano;
             // add to downloading queue
-            m_inflightpktmap.AddSentPacket(p,sendtic);
+            m_inflightpktmap.AddSentPacket(p, sendtic);
 
             // inform cc algo that a packet is sent
             InflightPacket sentpkt;
@@ -217,7 +215,7 @@ public:
             return;
         }
         // find the sending record
-        auto rtpair = m_inflightpktmap.PktIsInFlight(seq,datapiece);
+        auto rtpair = m_inflightpktmap.PktIsInFlight(seq, datapiece);
         auto inFlight = rtpair.first;
         auto inflightPkt = rtpair.second;
         if (inFlight)
@@ -225,7 +223,7 @@ public:
 
             auto oldsrtt = m_rttstats.smoothed_rtt();
             // we don't have ack_delay in this simple implementation.
-            auto pkt_rtt = recvtic-inflightPkt.sendtic;
+            auto pkt_rtt = recvtic - inflightPkt.sendtic;
             m_rttstats.UpdateRtt(pkt_rtt, Duration::Zero(), Clock::GetClock()->Now());
             auto newsrtt = m_rttstats.smoothed_rtt();
 
@@ -241,11 +239,11 @@ public:
 
             auto newcwnd = m_congestionCtl->GetCWND();
             // mark as received
-            m_inflightpktmap.OnPacktReceived(inflightPkt,recvtic);
+            m_inflightpktmap.OnPacktReceived(inflightPkt, recvtic);
         }
         else
         {
-            SPDLOG_WARN(" Recv an pkt with unknown seq:{}",seq);
+            SPDLOG_WARN(" Recv an pkt with unknown seq:{}", seq);
         }
 
     }
@@ -290,19 +288,19 @@ public:
             {
                 m_inflightpktmap.RemoveFromInFlight(pkt);
             }
-            m_congestionCtl->OnDataAckOrLoss(ack,loss,m_rttstats);
+            m_congestionCtl->OnDataAckOrLoss(ack, loss, m_rttstats);
             InformLossUp(loss);
         }
     }
 
     Duration GetRtt()
     {
-        Duration rtt{Duration::Zero()};
+        Duration rtt{ Duration::Zero() };
         if (isRunning)
         {
             rtt = m_rttstats.smoothed_rtt();
         }
-        SPDLOG_TRACE("rtt = {}",rtt.ToDebuggingValue());
+        SPDLOG_TRACE("rtt = {}", rtt.ToDebuggingValue());
         return rtt;
     }
 
@@ -312,10 +310,10 @@ public:
     }
 
 
-   basefw::ID GetSessionID()
-   {
+    basefw::ID GetSessionID()
+    {
         return m_sessionId;
-   }
+    }
 
 private:
     bool isRunning{ false };

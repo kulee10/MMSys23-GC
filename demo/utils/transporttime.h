@@ -6,13 +6,14 @@
 #include "demo/utils/thirdparty/quiche/quic_time.h"
 
 
-
-using Timepoint = quic::QuicTime;
-using Duration = quic::QuicTime::Delta;
-#ifdef PCDN_USE_NS3
+using Timepoint = basefw::quic::QuicTime;
+using Duration = basefw::quic::QuicTime::Delta;
+#ifdef USE_NS3
 #include "ns3clock.hpp"
 using Clock = NS3Clock;
 #else
+
 #include "defaultclock.hpp"
+
 using Clock = DefaultClock;
 #endif

@@ -30,10 +30,11 @@ public:
 class MultiPathSchedulerAlgo
 {
 public:
-    explicit MultiPathSchedulerAlgo(const fw::ID& taskid, std::map<fw::ID, fw::shared_ptr<SessionStreamController>>& dlsessionmap,
+    explicit MultiPathSchedulerAlgo(const fw::ID& taskid,
+            std::map<fw::ID, fw::shared_ptr<SessionStreamController>>& dlsessionmap,
             std::set<DataNumber>& downloadQueue, std::set<int32_t>& lostPiecesQueue)
             : m_taskid(taskid), m_dlsessionmap(dlsessionmap),
-            m_downloadQueue(downloadQueue),m_lostPiecesQueue(lostPiecesQueue)
+              m_downloadQueue(downloadQueue), m_lostPiecesQueue(lostPiecesQueue)
     {
     }
 

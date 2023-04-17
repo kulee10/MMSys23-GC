@@ -3,4 +3,4 @@
 #pragma once
 
 #include "demo/utils/thirdparty/quiche/rtt_stats.h"
-using RttStats = quic::RttStats;
+

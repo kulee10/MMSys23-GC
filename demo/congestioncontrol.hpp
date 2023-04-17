@@ -1,5 +1,6 @@
 // Copyright (c) 2023. ByteDance Inc. All rights reserved.
 
+
 #pragma once
 
 #include <cstdint>
@@ -21,17 +22,17 @@ enum class CongestionCtlType : uint8_t
 
 struct LossEvent
 {
-    bool valid{false};
+    bool valid{ false };
     // There may be multiple timeout events at one time
     std::vector<InflightPacket> lossPackets;
-    Timepoint losttic{Timepoint::Infinite()};
+    Timepoint losttic{ Timepoint::Infinite() };
 
     std::string DebugInfo() const
     {
         std::stringstream ss;
         ss << "valid: " << valid << " "
            << "lossPackets:{";
-        for (const auto &pkt : lossPackets)
+        for (const auto& pkt: lossPackets)
         {
             ss << pkt;
         }
@@ -45,10 +46,10 @@ struct LossEvent
 struct AckEvent
 {
     /** since we receive packets one by one, each packet carries only one data piece*/
-    bool valid{false};
+    bool valid{ false };
     DataPacket ackPacket;
-    Timepoint sendtic{Timepoint::Infinite()};
-    Timepoint losttic{Timepoint::Infinite()};
+    Timepoint sendtic{ Timepoint::Infinite() };
+    Timepoint losttic{ Timepoint::Infinite() };
 
     std::string DebugInfo() const
     {
@@ -81,20 +82,23 @@ public:
      * output
      * @param losses loss event
      * */
-    virtual void DetectLoss(const InFlightPacketMap &downloadingmap, Timepoint eventtime,
-                            const AckEvent &ackEvent, uint64_t maxacked, LossEvent &losses, RttStats &rttStats){};
+    virtual void DetectLoss(const InFlightPacketMap& downloadingmap, Timepoint eventtime,
+            const AckEvent& ackEvent, uint64_t maxacked, LossEvent& losses, RttStats& rttStats)
+    {
+    };
 
     virtual ~LossDetectionAlgo() = default;
+
 };
 
 class DefaultLossDetectionAlgo : public LossDetectionAlgo
-{ /// Check loss event based on RTO
+{/// Check loss event based on RTO
 public:
-    void DetectLoss(const InFlightPacketMap &downloadingmap, Timepoint eventtime, const AckEvent &ackEvent,
-                    uint64_t maxacked, LossEvent &losses, RttStats &rttStats) override
+    void DetectLoss(const InFlightPacketMap& downloadingmap, Timepoint eventtime, const AckEvent& ackEvent,
+            uint64_t maxacked, LossEvent& losses, RttStats& rttStats) override
     {
         SPDLOG_TRACE("inflight: {} eventtime: {} ackEvent:{} ", downloadingmap.DebugInfo(),
-                     eventtime.ToDebuggingValue(), ackEvent.DebugInfo());
+                eventtime.ToDebuggingValue(), ackEvent.DebugInfo());
         /** RFC 9002 Section 6
          * */
         Duration maxrtt = std::max(rttStats.previous_srtt(), rttStats.latest_rtt());
@@ -104,12 +108,11 @@ public:
             maxrtt = rttStats.SmoothedOrInitialRtt();
         }
         Duration loss_delay = maxrtt + (maxrtt * (5.0 / 4.0));
-        // Duration loss_delay = rttStats.SmoothedOrInitialRtt() + 4 * rttStats.mean_deviation();
         loss_delay = std::max(loss_delay, Duration::FromMicroseconds(1));
         SPDLOG_TRACE(" maxrtt: {}, loss_delay: {}", maxrtt.ToDebuggingValue(), loss_delay.ToDebuggingValue());
-        for (const auto &pkt_itor : downloadingmap.inflightPktMap)
+        for (const auto& pkt_itor: downloadingmap.inflightPktMap)
         {
-            const auto &pkt = pkt_itor.second;
+            const auto& pkt = pkt_itor.second;
             if (Timepoint(pkt.sendtic + loss_delay) <= eventtime)
             {
                 losses.lossPackets.emplace_back(pkt);
@@ -122,6 +125,7 @@ public:
             SPDLOG_DEBUG("losses: {}", losses.DebugInfo());
         }
     }
+
     ~DefaultLossDetectionAlgo() override
     {
     }
@@ -129,39 +133,41 @@ public:
 private:
 };
 
+
 class CongestionCtlAlgo
 {
 public:
+
     virtual ~CongestionCtlAlgo() = default;
 
     virtual CongestionCtlType GetCCtype() = 0;
 
     /////  Event
-    virtual void OnDataSent(const InflightPacket &sentpkt) = 0;
+    virtual void OnDataSent(const InflightPacket& sentpkt) = 0;
 
-    virtual void OnDataAckOrLoss(const AckEvent &ackEvent, const LossEvent &lossEvent, RttStats &rttstats) = 0;
+    virtual void OnDataAckOrLoss(const AckEvent& ackEvent, const LossEvent& lossEvent, RttStats& rttstats) = 0;
 
     /////
     virtual uint32_t GetCWND() = 0;
 
-    //    virtual uint32_t GetFreeCWND() = 0;
+//    virtual uint32_t GetFreeCWND() = 0;
+
 };
 
 /// config or setting for specific cc algo
 /// used for pass parameters to CongestionCtlAlgo
-
-/////////////////////////////////////////// reno ///////////////////////////////////////////
 struct RenoCongestionCtlConfig
 {
-    uint32_t minCwnd{1};
-    uint32_t maxCwnd{80};
-    uint32_t ssThresh{40}; /** slow start threshold*/
+    uint32_t minCwnd{ 1 };
+    uint32_t maxCwnd{ 64 };
+    uint32_t ssThresh{ 32 };/** slow start threshold*/
 };
 
 class RenoCongestionContrl : public CongestionCtlAlgo
 {
 public:
-    explicit RenoCongestionContrl(const RenoCongestionCtlConfig &ccConfig)
+
+    explicit RenoCongestionContrl(const RenoCongestionCtlConfig& ccConfig)
     {
         m_ssThresh = ccConfig.ssThresh;
         m_minCwnd = ccConfig.minCwnd;
@@ -179,12 +185,12 @@ public:
         return CongestionCtlType::reno;
     }
 
-    void OnDataSent(const InflightPacket &sentpkt) override
+    void OnDataSent(const InflightPacket& sentpkt) override
     {
         SPDLOG_TRACE("");
     }
 
-    void OnDataAckOrLoss(const AckEvent &ackEvent, const LossEvent &lossEvent, RttStats &rttstats) override
+    void OnDataAckOrLoss(const AckEvent& ackEvent, const LossEvent& lossEvent, RttStats& rttstats) override
     {
         SPDLOG_TRACE("ackevent:{}, lossevent:{}", ackEvent.DebugInfo(), lossEvent.DebugInfo());
         if (lossEvent.valid)
@@ -196,6 +202,7 @@ public:
         {
             OnDataRecv(ackEvent);
         }
+
     }
 
     /////
@@ -205,9 +212,10 @@ public:
         return m_cwnd;
     }
 
-    //    virtual uint32_t GetFreeCWND() = 0;
+//    virtual uint32_t GetFreeCWND() = 0;
 
 private:
+
     bool InSlowStart()
     {
         bool rt = false;
@@ -226,11 +234,12 @@ private:
     bool LostCheckRecovery(Timepoint largestLostSentTic)
     {
         SPDLOG_DEBUG("largestLostSentTic:{},lastLagestLossPktSentTic:{}",
-                     largestLostSentTic.ToDebuggingValue(), lastLagestLossPktSentTic.ToDebuggingValue());
+                largestLostSentTic.ToDebuggingValue(), lastLagestLossPktSentTic.ToDebuggingValue());
         /** If the largest sent tic of this loss event,is bigger than the last sent tic of the last lost pkt
          * (plus a 10ms correction), this session is in Recovery phase.
          * */
-        if (lastLagestLossPktSentTic.IsInitialized() && (largestLostSentTic + Duration::FromMilliseconds(10) > lastLagestLossPktSentTic))
+        if (lastLagestLossPktSentTic.IsInitialized() &&
+            (largestLostSentTic + Duration::FromMilliseconds(10) > lastLagestLossPktSentTic))
         {
             SPDLOG_DEBUG("In Recovery");
             return true;
@@ -242,6 +251,7 @@ private:
             SPDLOG_DEBUG("new loss");
             return false;
         }
+
     }
 
     void ExitSlowStart()
@@ -250,7 +260,8 @@ private:
         m_ssThresh = m_cwnd;
     }
 
-    void OnDataRecv(const AckEvent &ackEvent)
+
+    void OnDataRecv(const AckEvent& ackEvent)
     {
         SPDLOG_DEBUG("ackevent:{},m_cwnd:{}", ackEvent.DebugInfo(), m_cwnd);
         if (InSlowStart())
@@ -290,9 +301,9 @@ private:
         SPDLOG_DEBUG("after RX, m_cwnd={}", m_cwnd);
     }
 
-    void OnDataLoss(const LossEvent &lossEvent)
+    void OnDataLoss(const LossEvent& lossEvent)
     {
-        SPDLOG_DEBUG("lossevent:{}", lossEvent.DebugInfo());
+                SPDLOG_DEBUG("lossevent:{}", lossEvent.DebugInfo());
         Timepoint maxsentTic{Timepoint::Zero()};
 
         for (const auto &lostpkt : lossEvent.lossPackets)
@@ -326,18 +337,20 @@ private:
         SPDLOG_DEBUG("after Loss, m_cwnd={}", m_cwnd);
     }
 
+
     uint32_t BoundCwnd(uint32_t trySetCwnd)
     {
         return std::max(m_minCwnd, std::min(trySetCwnd, m_maxCwnd));
     }
 
-    uint32_t m_cwnd{1};
-    uint32_t m_cwndCnt{0}; /** in congestion avoid phase, used for counting ack packets*/
-    Timepoint lastLagestLossPktSentTic{Timepoint::Zero()};
+    uint32_t m_cwnd{ 1 };
+    uint32_t m_cwndCnt{ 0 }; /** in congestion avoid phase, used for counting ack packets*/
+    Timepoint lastLagestLossPktSentTic{ Timepoint::Zero() };
 
-    uint32_t m_minCwnd{1};
-    uint32_t m_maxCwnd{80};
-    uint32_t m_ssThresh{40}; /** slow start threshold*/
+
+    uint32_t m_minCwnd{ 1 };
+    uint32_t m_maxCwnd{ 64 };
+    uint32_t m_ssThresh{ 32 };/** slow start threshold*/
 };
 
 /////////////////////////////////////////// vegas ///////////////////////////////////////////
@@ -346,7 +359,7 @@ private:
 struct VegasCongestionCtlConfig
 {
     uint32_t minCwnd{1};
-    uint32_t maxCwnd{80};
+    uint32_t maxCwnd{64};
 };
 
 class VegasCongestionContrl : public CongestionCtlAlgo
@@ -445,7 +458,7 @@ private:
 
     uint32_t m_cwnd{1};
     uint32_t m_minCwnd{1};
-    uint32_t m_maxCwnd{80};
+    uint32_t m_maxCwnd{64};
     uint32_t m_cwndCnt{0}; /** in congestion avoid phase, used for counting ack packets*/
 };
 // [kyl] end

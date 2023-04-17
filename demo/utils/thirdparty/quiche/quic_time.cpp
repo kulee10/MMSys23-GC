@@ -9,7 +9,7 @@
 #include <limits>
 #include <string>
 
-
+namespace basefw{
 namespace quic {
 
     std::string QuicTime::Delta::ToDebuggingValue() const {
@@ -77,5 +77,6 @@ namespace quic {
         return QuicWallTime(microseconds);
     }
 
+}
 }  // namespace quic
 
